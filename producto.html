@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Producto | Carioca Urbanas</title>
+  <meta
+    id="metaDescription"
+    name="description"
+    content="Zapatillas premium importadas de Brasil."
+  >
+  <meta id="ogTitle" property="og:title" content="Producto | Carioca Urbanas">
+  <meta id="ogDescription" property="og:description" content="Zapatillas premium importadas de Brasil.">
+  <meta id="ogImage" property="og:image" content="">
+  <meta property="og:type" content="product">
+  <meta name="theme-color" content="#151515">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/img/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <link rel="preconnect" href="https://docs.google.com">
+  <link rel="preconnect" href="https://res.cloudinary.com">
+
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Volver al inicio">
+      <img src="assets/img/logo.png" alt="" width="34" height="34">
+      <span>Carioca Urbanas</span>
+    </a>
+
+    <a
+      class="header-whatsapp"
+      href="https://wa.me/5493425459234"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      WhatsApp
+    </a>
+  </header>
+
+  <main class="product-page">
+    <a class="back-link" href="index.html#catalogo">
+      ← Volver al catálogo
+    </a>
+
+    <div id="productLoading" class="product-loading">
+      Cargando producto…
+    </div>
+
+    <div id="productError" class="product-error" hidden>
+      <h1>No pudimos abrir el producto</h1>
+      <p></p>
+      <a href="index.html#catalogo">Volver al catálogo</a>
+    </div>
+
+    <article id="productDetail" class="product-detail" hidden>
+      <section class="gallery" aria-label="Galería del producto">
+        <div class="gallery__main" id="galleryMain">
+          <img
+            id="mainImage"
+            src=""
+            alt=""
+            draggable="false"
+          >
+
+          <div id="productBadges" class="product-badges"></div>
+
+          <button
+            id="previousImage"
+            class="gallery-arrow gallery-arrow--previous"
+            type="button"
+            aria-label="Imagen anterior"
+          >
+            ‹
+          </button>
+
+          <button
+            id="nextImage"
+            class="gallery-arrow gallery-arrow--next"
+            type="button"
+            aria-label="Imagen siguiente"
+          >
+            ›
+          </button>
+
+          <span id="imageCounter" class="gallery-counter"></span>
+        </div>
+
+        <div id="thumbnails" class="thumbnails"></div>
+      </section>
+
+      <section class="product-info" aria-label="Información del producto">
+        <p id="productBrand" class="product-info__brand"></p>
+        <h1 id="productTitle"></h1>
+        <p id="productCategory" class="product-info__category"></p>
+
+        <div class="product-price">
+          <strong id="productPrice"></strong>
+          <span>Contado / transferencia</span>
+        </div>
+
+        <p class="product-trust-note">
+          Compra online con atención personalizada.
+        </p>
+
+        <div
+          id="productInstallments"
+          class="product-installments"
+          hidden
+        ></div>
+
+        <section class="product-block">
+          <h2>Talles disponibles</h2>
+          <div id="productSizes" class="sizes"></div>
+        </section>
+
+        <section class="product-block">
+          <h2>Disponibilidad</h2>
+          <span id="productStock" class="stock-pill"></span>
+        </section>
+
+        <section id="descriptionSection" class="product-block">
+          <h2>Descripción</h2>
+          <p id="productDescription" class="product-description"></p>
+        </section>
+
+        <a
+          id="buyButton"
+          class="buy-button"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          COMPRAR
+          <span aria-hidden="true">→</span>
+        </a>
+
+        <p class="purchase-note">
+          Confirmamos disponibilidad y te enviamos el link de pago, CBU o alias.
+        </p>
+
+        <p id="productSku" class="product-sku"></p>
+      </section>
+    </article>
+  </main>
+
+  <div class="mobile-buy-bar" id="mobileBuyBar" hidden>
+    <div>
+      <span id="mobileProductName"></span>
+      <strong id="mobileProductPrice"></strong>
+    </div>
+
+    <a
+      id="mobileBuyButton"
+      href="#"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      COMPRAR
+    </a>
+  </div>
+
+  <footer class="site-footer">
+    <img src="assets/img/logo.png" alt="Carioca Urbanas">
+    <p>Carioca Urbanas · Zapatillas premium online</p>
+    <a href="index.html#catalogo">Ver catálogo</a>
+  </footer>
+
+  <noscript>
+    <div class="noscript-message">
+      Necesitás activar JavaScript para ver este producto.
+    </div>
+  </noscript>
+
+  <script type="module" src="assets/js/product.js"></script>
+</body>
+</html>
