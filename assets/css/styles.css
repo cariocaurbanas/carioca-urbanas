@@ -1480,3 +1480,12 @@ summary:focus-visible {
     }
 
 }
+.product-card__sizes{
+    margin-top:6px;
+    margin-bottom:10px;
+    font-size:.78rem;
+    line-height:1.35;
+    color:#7b7b7b;
+    font-weight:500;
+    letter-spacing:.02em;
+}
