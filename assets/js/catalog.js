@@ -175,7 +175,11 @@ function createProductCard(product, index) {
         <p class="product-card__price">
           ${escapeHtml(formatPrice(primaryPrice(product)))}
         </p>
-
+        ${product.talles ? `
+        <p class="product-card__sizes">
+        Talles: ${escapeHtml(product.talles)}
+        </p>
+        ` : ""}
         <a
           class="product-card__link"
           href="producto.html?sku=${encodeURIComponent(sku)}"
