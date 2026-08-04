@@ -163,7 +163,36 @@ export function csvToProducts(csvText) {
       return product;
     })
     .filter(product => isYes(product.activo))
-    .sort((a, b) => safeNumber(a.orden) - safeNumber(b.orden));
+    .sort((a, b) => {
+  const brandComparison = String(a.marca || "").localeCompare(
+    String(b.marca || ""),
+    "es",
+    { sensitivity: "base" }
+  );
+
+  if (brandComparison !== 0) {
+    return brandComparison;
+  }
+
+  const modelComparison = String(a.modelo || "").localeCompare(
+    String(b.modelo || ""),
+    "es",
+    {
+      sensitivity: "base",
+      numeric: true
+    }
+  );
+
+  if (modelComparison !== 0) {
+    return modelComparison;
+  }
+
+  return String(a.color || "").localeCompare(
+    String(b.color || ""),
+    "es",
+    { sensitivity: "base" }
+  );
+});
 }
 
 export function parseCSV(text) {
