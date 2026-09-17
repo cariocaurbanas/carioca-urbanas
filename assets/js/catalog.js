@@ -87,7 +87,8 @@ function renderFilteredProducts() {
   const brand = elements.brandFilter.value;
   const category = elements.categoryFilter.value;
 
-  const products = state.products.filter(product => {
+const products = state.products
+  .filter(product => {
     const searchable = normalizeText(
       [
         product.marca,
@@ -104,11 +105,27 @@ function renderFilteredProducts() {
       (!brand || product.marca === brand) &&
       (!category || product.categoria === category)
     );
-  });
+  })
+  .sort(compareCatalogProducts);
 
-  renderProducts(products);
+renderProducts(products); 
 }
+function compareCatalogProducts(productA, productB) {
+  const offerA = isYes(productA.oferta) ? 0 : 1;
+  const offerB = isYes(productB.oferta) ? 0 : 1;
 
+  if (offerA !== offerB) {
+    return offerA - offerB;
+  }
+
+  const orderA = Number(productA.orden);
+  const orderB = Number(productB.orden);
+
+  return (
+    (Number.isFinite(orderA) ? orderA : Number.MAX_SAFE_INTEGER) -
+    (Number.isFinite(orderB) ? orderB : Number.MAX_SAFE_INTEGER)
+  );
+}
 function renderProducts(products) {
   elements.catalogStatus.textContent =
     products.length === 1
