@@ -1,5 +1,0 @@
-Options -Indexes
-
-<FilesMatch "^(config\.php|config\.example\.php|bootstrap\.php)$">
-  Require all denied
-</FilesMatch>
