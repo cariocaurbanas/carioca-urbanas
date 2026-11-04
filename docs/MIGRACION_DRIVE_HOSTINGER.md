@@ -5,53 +5,85 @@ Repositorio: `cariocaurbanas/carioca-urbanas`
 Rama productiva: `main`
 Rama de trabajo: `migration-drive-hostinger`
 
-### Arquitectura actual
+## Recursos reales confirmados
+- Google Sheet vivo: `CARIOCA CORE 3.0 - STAGING`
+- Spreadsheet ID: `1SvE66NpvhUcFeZO31SdXtjmaio6lmu7evwRBSqxsMzM`
+- Drive raíz: `CARIOCA_URBANAS`
+- Drive raíz ID: `1ZCyS5_InlA8v8yJFfqAAdLDRmnDSIYUB`
+- Drive productos: `PRODUCTOS`
+- Drive productos ID: `1PRis6foEeObZ05QkLzWrAXPpG5au_KHG`
+- Cuenta Drive operativa: `SORTIGOZA.DRIVE`
+- La carpeta raíz figura `shared: false`.
+
+## Arquitectura actual
 1. Carioca Manager (Apps Script) guarda datos de producto en Google Sheets.
 2. Carioca Core valida y publica `Web_CSV`.
-3. La web lee el CSV publicado de Google Sheets.
-4. `foto_1` a `foto_5` son URLs externas.
-5. El sitio público está desplegado en GitHub Pages.
+3. La web pública lee el CSV publicado de Google Sheets en cada sesión.
+4. `foto_1` a `foto_5` son URLs públicas externas.
+5. Las imágenes actuales están mayormente en Cloudinary.
+6. El sitio está desplegado desde GitHub Pages.
 
-### Hallazgos confirmados
-- El Manager actual no sube imágenes: solicita URLs en `foto_1` a `foto_5`.
-- La interfaz todavía identifica ese bloque como "Imágenes de Cloudinary".
+## Hallazgos confirmados
+- El Manager actual no sube archivos: solicita URLs en `foto_1` a `foto_5`.
+- La interfaz todavía muestra "Imágenes de Cloudinary".
 - Core valida `foto_1` como URL HTTP/HTTPS y exporta las cinco fotos a `Web_CSV`.
 - La web arma la galería desde `foto_1` a `foto_5`.
-- `index.html` y `producto.html` todavía tienen `preconnect` a Cloudinary.
+- `index.html` y `producto.html` mantienen `preconnect` a Cloudinary.
 - `index.html`, `robots.txt` y `sitemap.xml` contienen URLs antiguas de GitHub Pages.
-- `DEPLOY_GITHUB.txt` documenta un repositorio/ruta anterior (`cariocaurbanasweb`), no el repositorio actual.
+- El `index.html` productivo contiene un enlace flotante de WhatsApp fuera de `<body>`; el navegador lo corrige, pero el HTML es inválido y debe limpiarse.
+- `producto.html` actualiza Open Graph por JavaScript; no es una solución SEO robusta para crawlers que no ejecuten JS.
 - `config.js` apunta al CSV correcto de Core 3.0.
 - La prioridad de ofertas está implementada en `catalog.js`.
+- La planilla tiene locale `es_MX` y zona horaria `America/Los_Angeles`; debe corregirse de forma controlada.
+- Config mantiene 50% como ganancia objetivo general. `CU-000001` hoy usa una excepción manual del 25%, por eso su precio actual difiere del ejemplo original.
 
 ## Principios de la migración
 1. No modificar `main` hasta completar pruebas.
 2. No tocar fórmulas económicas ni el contrato de precios de Core 3.0.
-3. Google Drive será el repositorio maestro de imágenes.
-4. Las imágenes web no dependerán de URLs temporales de miniaturas de Drive.
-5. Hostinger será la capa pública de entrega del sitio y de las copias optimizadas para web.
-6. Mantener rollback simple durante toda la migración.
+3. Google Drive será el repositorio maestro privado de imágenes.
+4. La web no servirá imágenes directamente desde Drive.
+5. Hostinger será la capa pública de entrega de imágenes y datos.
+6. `Web_CSV` se conserva como salida administrativa/backup.
+7. El sitio público dejará de depender de Google Sheets en tiempo de visita.
+8. Mantener rollback simple durante toda la migración.
 
 ## Arquitectura objetivo
 ```
 Carioca Manager
-      |
-      v
-Google Drive (originales)
-      |
-      v
-Google Sheets / Core 3.x
-      |
-      v
-Web_CSV
-      |
-      v
-Hostinger (sitio + copias web de imágenes)
-      |
-      v
-Dominio definitivo
+   |                       |                     \ imágenes originales
+   v                      v
+Google Sheets/Core      Google Drive privado
+   |
+   | Publicar catálogo
+   v
+Hostinger API
+   |--------------------------|
+   v                          v
+data/catalog.json        media/productos/<SKU>/
+   |                          |
+   |--------------------------|
+              |
+              v
+        Sitio + dominio
 ```
 
-## Estructura propuesta en Drive
+## Decisión clave: catálogo same-origin
+Core seguirá generando `Web_CSV`, pero además enviará el catálogo público a Hostinger como:
+
+```
+/data/catalog.json
+```
+
+La web leerá ese JSON desde su propio dominio. Beneficios:
+- menos dependencia de Google;
+- mejor velocidad;
+- sin CORS;
+- publicación atómica;
+- más fácil de cachear;
+- rollback simple;
+- Hostinger puede seguir sirviendo el último catálogo aunque Google tenga una caída.
+
+## Drive: estructura
 ```
 CARIOCA_URBANAS/
   PRODUCTOS/
@@ -63,24 +95,19 @@ CARIOCA_URBANAS/
       ...
 ```
 
-## Modelo de datos propuesto
-Conservar temporalmente `foto_1` a `foto_5` para compatibilidad.
+## Modelo de datos recomendado
+Mantener `foto_1` a `foto_5` como URLs públicas estables en Hostinger.
 
-Agregar:
-- `drive_foto_1_id`
-- `drive_foto_2_id`
-- `drive_foto_3_id`
-- `drive_foto_4_id`
-- `drive_foto_5_id`
-
-Opcional para control:
+Usar las cuatro columnas libres actuales de `Productos_Madre` para:
+- `drive_folder_id`
 - `imagenes_sync_estado`
 - `imagenes_sync_fecha`
+- `imagenes_sync_detalle`
 
-Los IDs de Drive identifican los originales. Las URLs públicas para la web se generan por separado.
+No hace falta guardar cinco IDs de archivo si cada producto tiene su propia carpeta y nombres deterministas.
 
 ## Manager 3.1 — objetivo
-Reemplazar campos URL por selectores de archivo:
+Reemplazar los campos de URL por selectores de archivo:
 - Foto principal
 - Foto 2
 - Foto 3
@@ -88,67 +115,68 @@ Reemplazar campos URL por selectores de archivo:
 - Foto 5
 
 Al guardar:
-1. Validar tipo y tamaño.
-2. Crear/ubicar carpeta por SKU.
-3. Subir archivos a Drive.
-4. Nombrarlos de forma determinista.
-5. Guardar IDs de Drive.
-6. Mostrar previews.
-7. Permitir reemplazar/eliminar una foto sin afectar las demás.
+1. validar imagen;
+2. reservar/generar SKU bajo lock;
+3. crear/ubicar carpeta Drive del SKU;
+4. subir original a Drive;
+5. enviar copia web a Hostinger;
+6. recibir URL pública estable;
+7. escribir esa URL en `foto_1...foto_5`;
+8. guardar `drive_folder_id`;
+9. marcar sincronización;
+10. completar Core y guardar.
 
-## Web / Hostinger
-Antes del cambio de dominio:
-- corregir canonical;
-- corregir og:url;
-- corregir og:image;
-- eliminar preconnect de Cloudinary;
-- corregir robots.txt;
-- corregir sitemap.xml;
-- mantener rutas relativas;
-- definir estrategia de URLs de producto;
-- configurar staging de Hostinger;
-- probar cache y fallback del catálogo.
+En edición:
+- si no se selecciona un archivo nuevo, se conserva la imagen existente;
+- si se reemplaza, se actualiza Drive + Hostinger;
+- la eliminación explícita será una acción separada y segura.
+
+## Hostinger
+La rama de migración incluirá endpoints PHP sin secretos:
+- `api/upload-product-image.php`
+- `api/delete-product-image.php`
+- `api/publish-catalog.php`
+- `api/config.example.php`
+
+Los secretos reales vivirán fuera del repositorio en `api/config.php`.
 
 ## Fases
-### Fase A — Auditoría y aislamiento
-- rama separada;
-- inventario completo;
-- no modificar producción.
+### A — Auditoría y aislamiento
+Completada en la rama de migración.
 
-### Fase B — Drive
-- carpeta raíz;
-- estructura por SKU;
-- upload desde Manager;
-- columnas de IDs;
-- prueba con un producto borrador.
+### B — Drive
+En curso:
+- raíz creada;
+- carpeta `PRODUCTOS` creada;
+- pendiente integración desde Manager.
 
-### Fase C — Sincronización web
-- generar copias optimizadas para Hostinger;
-- publicar rutas web estables;
-- mantener Drive como original.
+### C — API Hostinger
+Preparar y probar localmente endpoints de imágenes y catálogo.
 
-### Fase D — Migración de imágenes existentes
-- copiar desde URLs actuales;
-- verificar 1 a 5 imágenes por SKU;
-- no borrar origen anterior hasta completar control.
+### D — Manager 3.1 en staging
+Integrar subida real sin desplegar todavía la implementación productiva.
 
-### Fase E — Hostinger staging
-- desplegar rama de migración;
-- configurar dominio/staging;
-- probar catálogo, producto, imágenes, WhatsApp, filtros, oferta y móvil.
+### E — Sitio Hostinger staging
+- leer `data/catalog.json`;
+- servir imágenes same-origin;
+- limpiar SEO y URLs;
+- mejorar fichas de producto.
 
-### Fase F — Corte final
+### F — Migración de imágenes existentes
+Copiar Cloudinary -> Drive + Hostinger, SKU por SKU.
+
+### G — Corte final
 - backup;
-- sincronización final;
-- cambiar dominio;
-- actualizar SEO;
+- publicación final;
+- cambio de dominio;
+- SEO;
 - smoke test;
-- mantener rollback disponible.
+- rollback disponible.
 
-## Invariantes que no se tocan
+## Invariantes
 - SKU existente.
 - Modelo económico Core 3.0.
 - Validación estricta.
-- Publicación de Web_CSV.
+- Publicación de `Web_CSV`.
 - Oferta primero.
 - Flujo de compra por WhatsApp.
