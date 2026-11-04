@@ -98,11 +98,7 @@ CARIOCA_URBANAS/
 ## Modelo de datos recomendado
 Mantener `foto_1` a `foto_5` como URLs públicas estables en Hostinger.
 
-Usar las cuatro columnas libres actuales de `Productos_Madre` para:
-- `drive_folder_id`
-- `imagenes_sync_estado`
-- `imagenes_sync_fecha`
-- `imagenes_sync_detalle`
+Las columnas BA:BD NO están libres: contienen `descripcion_corta`, `seo_alt`, `slug` y `notas_internas`.\n\nEn la copia 3.1 se amplió `Productos_Madre` y se reservaron exactamente BE:BH:\n- BE `drive_folder_id`\n- BF `imagenes_sync_estado`\n- BG `imagenes_sync_fecha`\n- BH `imagenes_sync_detalle`
 
 No hace falta guardar cinco IDs de archivo si cada producto tiene su propia carpeta y nombres deterministas.
 
@@ -180,3 +176,21 @@ Copiar Cloudinary -> Drive + Hostinger, SKU por SKU.
 - Publicación de `Web_CSV`.
 - Oferta primero.
 - Flujo de compra por WhatsApp.
+
+
+## Staging real creado
+- Carpeta Drive: `CARIOCA_URBANAS/STAGING`
+- Folder ID: `1vBjjeUrVoZ1bIZ6coNJT_WcNsptO70_W`
+- Planilla: `CARIOCA CORE 3.1 - STAGING DRIVE HOSTINGER`
+- Spreadsheet ID: `14i2KLALqDWN3XnCxUq9BoyJhLr6DLjVIOphWDUHMzdg`
+- Locale: `es_AR`
+- Zona horaria: `America/Cordoba`
+- Producción no fue modificada.
+
+
+## Estado del frontend de staging
+- `config.js` prioriza `./data/catalog.json`.
+- Google Sheets queda como fallback temporal durante la migración.
+- La API vive en `/api`, las imágenes públicas en `/media` y el catálogo en `/data`.
+- Se retiró el preconnect de Cloudinary en staging.
+- Se corrigió la ubicación del botón flotante de WhatsApp dentro de `<body>`.
