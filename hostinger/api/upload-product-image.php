@@ -9,11 +9,19 @@ carioca_authenticate($config);
 
 $sku = strtoupper(trim((string)($_POST['sku'] ?? '')));
 $slot = (int)($_POST['slot'] ?? 0);
+$revision = trim((string)($_POST['revision'] ?? ''));
 
 if (!carioca_valid_sku($sku) || !carioca_valid_slot($slot)) {
     carioca_json(422, [
         'ok' => false,
         'error' => 'INVALID_PRODUCT_REFERENCE',
+    ]);
+}
+
+if (preg_match('/^[A-Za-z0-9_-]{6,40}$/', $revision) !== 1) {
+    carioca_json(422, [
+        'ok' => false,
+        'error' => 'INVALID_REVISION',
     ]);
 }
 
@@ -64,10 +72,16 @@ $root = dirname(__DIR__) . '/media/productos';
 $productDir = $root . '/' . $sku;
 carioca_ensure_dir($productDir);
 
-carioca_remove_slot_files($productDir, $sku, $slot);
-
-$fileName = sprintf('%s-%02d.%s', $sku, $slot, $extension);
+// Versionado: nunca pisamos una imagen ya publicada durante el upload.
+$fileName = sprintf('%s-%02d-%s.%s', $sku, $slot, $revision, $extension);
 $target = $productDir . '/' . $fileName;
+
+if (is_file($target)) {
+    carioca_json(409, [
+        'ok' => false,
+        'error' => 'REVISION_ALREADY_EXISTS',
+    ]);
+}
 
 if (!move_uploaded_file($tmp, $target)) {
     carioca_json(500, [
@@ -80,6 +94,7 @@ if (!move_uploaded_file($tmp, $target)) {
 
 $baseUrl = rtrim((string)($config['public_base_url'] ?? ''), '/');
 if ($baseUrl === '') {
+    @unlink($target);
     carioca_json(500, [
         'ok' => false,
         'error' => 'PUBLIC_BASE_URL_MISSING',
@@ -93,6 +108,7 @@ carioca_json(200, [
     'api_version' => CARIOCA_API_VERSION,
     'sku' => $sku,
     'slot' => $slot,
+    'revision' => $revision,
     'file' => $fileName,
     'mime' => $mime,
     'bytes' => filesize($target),
