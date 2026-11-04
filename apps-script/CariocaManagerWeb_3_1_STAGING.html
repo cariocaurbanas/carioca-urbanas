@@ -997,4 +997,489 @@
         return;
       }
 
-      const runner = google.script.run
+      const runner = google.script.run        .withSuccessHandler(handleSaved)
+        .withFailureHandler(error => {
+          showMessage("form-message", error, "error");
+          setButtonLoading(
+            saveButton,
+            false,
+            editingSku ? "Guardar cambios" : "Guardar producto"
+          );
+        });
+
+      if (editingSku) {
+        runner.actualizarProductoDesdeManager31(form);
+      } else {
+        runner.guardarProductoDesdeManager31(form);
+      }
+    });
+
+    IMAGE_SLOTS.forEach(slot => {
+      const input = document.getElementById(`foto_${slot}_archivo`);
+      const preview = document.getElementById(`preview_${slot}`);
+      const deleteCheckbox = form.elements[`eliminar_foto_${slot}`];
+
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+
+        if (!file) {
+          return;
+        }
+
+        if (file.size > 15 * 1024 * 1024) {
+          input.value = "";
+          showMessage(
+            "form-message",
+            `La foto ${slot} supera el máximo de 15 MB.`,
+            "error"
+          );
+          return;
+        }
+
+        deleteCheckbox.checked = false;
+        preview.src = URL.createObjectURL(file);
+        preview.style.display = "block";
+        document.getElementById(`foto_${slot}_actual`).textContent =
+          `Nueva imagen: ${file.name}`;
+      });
+
+      preview.addEventListener("error", () => {
+        preview.style.display = "none";
+      });
+    });
+
+    function initializeApp(data) {
+      initializeLists(data.listas);
+      updateKpis(data.resumen);
+    }
+
+    function showView(name) {
+      document.querySelectorAll(".view").forEach(view => {
+        view.classList.remove("active");
+      });
+
+      document.querySelectorAll("nav button").forEach(button => {
+        button.classList.remove("active");
+      });
+
+      document.getElementById(`view-${name}`).classList.add("active");
+
+      const nav = document.getElementById(`nav-${name}`);
+      if (nav) nav.classList.add("active");
+    }
+
+    function initializeLists(data) {
+      fillDatalist("marcasList", data.marcas);
+      fillDatalist("categoriasList", data.categorias);
+      fillDatalist("lineasList", data.lineas);
+      fillDatalist("coleccionesList", data.colecciones);
+      fillDatalist("materialesList", data.materiales);
+      fillDatalist("origenesList", data.origenes);
+      fillSelect("genero", data.generos, "Seleccionar");
+      fillSelect("estado_stock", data.estadosStock, "Seleccionar");
+    }
+
+    function fillDatalist(id, values) {
+      document.getElementById(id).innerHTML = (values || [])
+        .map(value => `<option value="${escapeHtml(value)}"></option>`)
+        .join("");
+    }
+
+    function fillSelect(id, values, firstLabel) {
+      document.getElementById(id).innerHTML = [
+        `<option value="">${escapeHtml(firstLabel)}</option>`,
+        ...(values || []).map(
+          value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`
+        )
+      ].join("");
+    }
+
+    function handleSaved(result) {
+      updateKpis(result.resumen);
+
+      showMessage(
+        "form-message",
+        editingSku
+          ? `Producto actualizado correctamente.\nSKU: ${result.sku}\nFila: ${result.row}\nEstado: ${result.status}`
+          : `Producto guardado correctamente.\nSKU: ${result.sku}\nFila: ${result.row}\nEstado: ${result.status}`,
+        "success"
+      );
+
+      resetProductForm();
+      setButtonLoading(saveButton, false, "Guardar producto");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function runSearch() {
+      const query = document.getElementById("searchInput").value.trim();
+      const results = document.getElementById("search-results");
+
+      results.innerHTML = '<div class="empty-state">Buscando productos…</div>';
+      clearMessage("search-message");
+
+      google.script.run
+        .withSuccessHandler(renderSearchResults)
+        .withFailureHandler(error => {
+          showMessage("search-message", error, "error");
+          results.innerHTML = "";
+        })
+        .buscarProductosManager(query);
+    }
+
+    function renderSearchResults(result) {
+      const container = document.getElementById("search-results");
+      const products = result.products || [];
+
+      if (!products.length) {
+        container.innerHTML =
+          '<div class="empty-state">No se encontraron productos.</div>';
+        return;
+      }
+
+      container.innerHTML = products.map(product => `
+        <article class="product-row">
+          ${
+            product.foto_1
+              ? `<img class="product-thumb" src="${escapeHtml(product.foto_1)}" alt="">`
+              : '<div class="product-thumb"></div>'
+          }
+
+          <div class="product-main">
+            <strong>${escapeHtml(product.marca)} ${escapeHtml(product.modelo)}</strong>
+            <div class="product-meta">
+              ${escapeHtml(product.sku)} · ${escapeHtml(product.color)}
+            </div>
+          </div>
+
+          <div class="optional-column">
+            <span class="status-pill">${escapeHtml(product.estado_publicacion || "Sin estado")}</span>
+            <div class="product-meta">${escapeHtml(product.categoria)}</div>
+          </div>
+
+          <div class="optional-column product-meta">
+            ${escapeHtml(product.stock_visible || "")}
+            ${
+              product.precio_transferencia
+                ? `<br>$ ${escapeHtml(product.precio_transferencia)}`
+                : ""
+            }
+          </div>
+
+          <button
+            class="button secondary"
+            type="button"
+            onclick="openProductForEdit('${escapeJs(product.sku)}')"
+          >
+            Editar
+          </button>
+        </article>
+      `).join("");
+    }
+
+    function openProductForEdit(sku) {
+      showOperation(
+        "Abriendo producto",
+        "Estamos recuperando los datos del catálogo."
+      );
+
+      google.script.run
+        .withSuccessHandler(product => {
+          hideOperation();
+          populateProductForm(product);
+          showView("new");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        })
+        .withFailureHandler(error => {
+          hideOperation();
+          showMessage("search-message", error, "error");
+        })
+        .obtenerProductoParaEditarManager(sku);
+    }
+
+    function populateProductForm(product) {
+      resetProductForm();
+      editingSku = product.sku;
+
+      Object.entries(product).forEach(([name, value]) => {
+        const field = form.elements[name];
+        if (!field) return;
+
+        if (field.type === "checkbox") {
+          field.checked = String(value).toUpperCase() === "SI";
+        } else {
+          field.value = value ?? "";
+        }
+      });
+
+      document.getElementById("formEyebrow").textContent = "Edición segura";
+      document.getElementById("formTitle").textContent =
+        `Editar ${product.sku}`;
+
+      const banner = document.getElementById("editingBanner");
+      banner.textContent =
+        `Estás editando ${product.marca} ${product.modelo} ${product.color}. El SKU no se modificará.`;
+      banner.classList.add("active");
+
+      saveButton.textContent = "Guardar cambios";
+
+      form.elements.foto_1_archivo.required = false;
+      renderCurrentImages(product);
+    }
+
+    function renderCurrentImages(product) {
+      IMAGE_SLOTS.forEach(slot => {
+        const url = product[`foto_${slot}`] || "";
+        const current = document.getElementById(`foto_${slot}_actual`);
+        const preview = document.getElementById(`preview_${slot}`);
+        const deleteWrap = document.getElementById(`delete_wrap_${slot}`);
+        const deleteCheckbox = form.elements[`eliminar_foto_${slot}`];
+
+        deleteCheckbox.checked = false;
+
+        if (url) {
+          current.textContent = "Imagen actual cargada";
+          preview.src = url;
+          preview.style.display = "block";
+          deleteWrap.style.display = "inline-flex";
+        } else {
+          current.textContent = "Sin imagen cargada";
+          preview.style.display = "none";
+          preview.removeAttribute("src");
+          deleteWrap.style.display = "none";
+        }
+      });
+    }
+
+    function resetImageSlots() {
+      IMAGE_SLOTS.forEach(slot => {
+        const input = document.getElementById(`foto_${slot}_archivo`);
+        const current = document.getElementById(`foto_${slot}_actual`);
+        const preview = document.getElementById(`preview_${slot}`);
+        const deleteWrap = document.getElementById(`delete_wrap_${slot}`);
+        const deleteCheckbox = form.elements[`eliminar_foto_${slot}`];
+
+        if (input) input.value = "";
+        if (deleteCheckbox) deleteCheckbox.checked = false;
+        current.textContent = "Sin imagen cargada";
+        preview.style.display = "none";
+        preview.removeAttribute("src");
+        deleteWrap.style.display = "none";
+      });
+    }
+
+    function resetProductForm() {
+      form.reset();
+      editingSku = "";
+
+      document.getElementById("origen").value = "Brasil";
+      document.getElementById("estado_publicacion").value = "Borrador";
+      form.elements.activo.checked = true;
+
+      document.getElementById("formEyebrow").textContent = "Carga segura";
+      document.getElementById("formTitle").textContent = "Nuevo producto";
+
+      const banner = document.getElementById("editingBanner");
+      banner.textContent = "";
+      banner.classList.remove("active");
+
+      form.elements.sku.value = "";
+      form.elements.foto_1_archivo.required = true;
+      resetImageSlots();
+      saveButton.textContent = "Guardar producto";
+    }
+
+    function cancelProductForm() {
+      resetProductForm();
+      clearMessage("form-message");
+      showView("home");
+    }
+
+    function escapeJs(value) {
+      return String(value ?? "")
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'");
+    }
+
+    function validateCatalog() {
+      const button = document.getElementById("validateButton");
+      const publishButton = document.getElementById("publishButton");
+
+      catalogValidated = false;
+      publishButton.disabled = true;
+      setButtonLoading(button, true, "Validando…");
+      showOperation(
+        "Validando catálogo",
+        "Estamos completando fórmulas y revisando cada producto."
+      );
+
+      google.script.run
+        .withSuccessHandler(result => {
+          try {
+            const type = result.errors ? "error" : "success";
+            showMessage(
+              "publish-message",
+              `${result.message}\n\nTiempo de validación: ${result.seconds} segundos.`,
+              type
+            );
+
+            catalogValidated = result.errors === 0 && result.valid > 0;
+            publishButton.disabled = !catalogValidated;
+          } catch (error) {
+            showMessage("publish-message", error, "error");
+          } finally {
+            hideOperation();
+            setButtonLoading(button, false, "1. Validar catálogo");
+          }
+        })
+        .withFailureHandler(error => {
+          hideOperation();
+          showMessage("publish-message", error, "error");
+          setButtonLoading(button, false, "1. Validar catálogo");
+        })
+        .validarCatalogoDesdeManager31();
+    }
+
+    function publishCatalog() {
+      if (!catalogValidated) return;
+
+      if (!confirm(
+        "La validación fue correcta.\n\n¿Confirmás la publicación del catálogo?"
+      )) return;
+
+      const validateButton = document.getElementById("validateButton");
+      const publishButton = document.getElementById("publishButton");
+
+      validateButton.disabled = true;
+      setButtonLoading(publishButton, true, "Publicando…");
+      showOperation(
+        "Publicando catálogo",
+        "Estamos actualizando Web_CSV y el catálogo de staging en Hostinger."
+      );
+
+      google.script.run
+        .withSuccessHandler(result => {
+          try {
+            showMessage(
+              "publish-message",
+              `Publicación exitosa.\n` +
+              `Productos publicados: ${result.published}\n` +
+              `Omitidos: ${result.omitted}\n` +
+              `Tiempo de publicación: ${result.seconds} segundos.
+` +
+              `Hostinger: ${result.hostinger && result.hostinger.ok ? "OK" : "Pendiente"}\n` +
+              `Versión: ${result.version || "3.1.0-STAGING"}`,
+              "success"
+            );
+
+            catalogValidated = false;
+                  refreshSummary();
+          } catch (error) {
+            showMessage(
+              "publish-message",
+              `La publicación terminó, pero hubo un problema al actualizar la pantalla:\n${error.message || error}`,
+              "warning"
+            );
+          } finally {
+            hideOperation();
+            setButtonLoading(publishButton, false, "2. Publicar catálogo");
+            publishButton.disabled = true;
+            validateButton.disabled = false;
+          }
+        })
+        .withFailureHandler(error => {
+          hideOperation();
+          showMessage("publish-message", error, "error");
+          setButtonLoading(publishButton, false, "2. Publicar catálogo");
+          publishButton.disabled = true;
+          validateButton.disabled = false;
+          catalogValidated = false;
+            })
+        .publicarCatalogoDesdeManager31();
+    }
+
+    function refreshSummary() {
+      google.script.run
+        .withSuccessHandler(data => {
+          if (data && data.resumen) updateKpis(data.resumen);
+        })
+        .withFailureHandler(() => {})
+        .obtenerDatosInicialesManager31();
+    }
+
+    function showOperation(title, text) {
+      const overlay = document.getElementById("operationOverlay");
+      document.getElementById("operationTitle").textContent = title;
+      document.getElementById("operationText").textContent = text;
+
+      operationStartedAt = Date.now();
+      updateElapsed();
+      clearInterval(operationTimer);
+      operationTimer = setInterval(updateElapsed, 1000);
+      overlay.classList.add("active");
+    }
+
+    function hideOperation() {
+      document.getElementById("operationOverlay").classList.remove("active");
+      clearInterval(operationTimer);
+      operationTimer = null;
+    }
+
+    function updateElapsed() {
+      const seconds = Math.max(
+        0,
+        Math.floor((Date.now() - operationStartedAt) / 1000)
+      );
+
+      document.getElementById("operationElapsed").textContent =
+        seconds === 1 ? "1 segundo" : `${seconds} segundos`;
+    }
+
+    function updateKpis(data) {
+      document.getElementById("kpi-total").textContent = data.total;
+      document.getElementById("kpi-published").textContent = data.publicados;
+      document.getElementById("kpi-drafts").textContent = data.borradores;
+      document.getElementById("kpi-no-photo").textContent = data.sinFoto;
+    }
+
+    function showMessage(id, value, type) {
+      const element = document.getElementById(id);
+      element.className = `message ${type}`;
+      element.textContent = value && value.message
+        ? value.message
+        : String(value || "Ocurrió un error.");
+    }
+
+    function clearMessage(id) {
+      const element = document.getElementById(id);
+      element.className = "message";
+      element.textContent = "";
+    }
+
+    function setButtonLoading(button, loading, label) {
+      button.disabled = loading;
+      button.textContent = label;
+    }
+
+
+
+    function showFatalError(error) {
+      document.body.innerHTML = `
+        <div style="max-width:720px;margin:70px auto;padding:28px;font-family:Arial,sans-serif;">
+          <p style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:#70766b;">CARIOCA MANAGER</p>
+          <h1 style="font-size:30px;margin:0 0 12px;">No se pudo conectar con la base</h1>
+          <p style="line-height:1.55;color:#5f645d;white-space:pre-line;">${escapeHtml(error && error.message ? error.message : String(error))}</p>
+        </div>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>'"]/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        '"': "&quot;"
+      })[char]);
+    }
+  </script>
+</body>
+</html>
