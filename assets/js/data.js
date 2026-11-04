@@ -4,7 +4,7 @@ import { CONFIG } from "./config.js";
 
 let productCache = null;
 
-const STORAGE_KEY = "carioca_catalog_cache_v1";
+const STORAGE_KEY = "carioca_catalog_cache_v2";
 const FETCH_TIMEOUT_MS = 9000;
 const MAX_ATTEMPTS = 3;
 
@@ -13,21 +13,117 @@ export async function loadProducts({ forceRefresh = false } = {}) {
     return productCache;
   }
 
+  const errors = [];
+
+  if (CONFIG.catalogUrl) {
+    try {
+      const products = await loadHostingerCatalog();
+
+      if (products.length) {
+        productCache = products;
+        saveProductsToStorage(products, "hostinger");
+        return productCache;
+      }
+
+      errors.push(new Error("El catálogo de Hostinger está vacío."));
+    } catch (error) {
+      errors.push(error);
+      console.warn(
+        "No se pudo cargar catalog.json. Se intentará el respaldo temporal.",
+        error
+      );
+    }
+  }
+
+  if (CONFIG.sheetUrl) {
+    try {
+      const products = await loadSheetCatalog();
+
+      if (products.length) {
+        productCache = products;
+        saveProductsToStorage(products, "google-sheets-fallback");
+        return productCache;
+      }
+
+      errors.push(new Error("El catálogo de Google Sheets está vacío."));
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  const storedProducts = loadProductsFromStorage();
+
+  if (storedProducts.length) {
+    productCache = storedProducts;
+    console.warn(
+      "Las fuentes remotas no respondieron. Se utilizó la última copia local.",
+      errors
+    );
+    return productCache;
+  }
+
+  throw (
+    errors[errors.length - 1] ||
+    new Error("No se pudo cargar el catálogo.")
+  );
+}
+
+async function loadHostingerCatalog() {
+  const json = await fetchJsonWithRetry(CONFIG.catalogUrl);
+
+  if (
+    !json ||
+    !Array.isArray(json.products) ||
+    !json.products.length
+  ) {
+    return [];
+  }
+
+  return normalizeProducts(json.products);
+}
+
+async function loadSheetCatalog() {
+  const csvText = await fetchTextWithRetry(CONFIG.sheetUrl, {
+    Accept: "text/csv,text/plain,*/*"
+  });
+
+  return csvToProducts(csvText);
+}
+
+async function fetchJsonWithRetry(url) {
   let lastError = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
-      const csvText = await fetchCatalogWithTimeout(CONFIG.sheetUrl);
-      const products = csvToProducts(csvText);
+      const text = await fetchTextWithTimeout(url, {
+        Accept: "application/json,text/plain,*/*"
+      });
 
-      if (!products.length) {
-        throw new Error("El catálogo recibido no contiene productos activos.");
+      const json = JSON.parse(text);
+
+      if (!json || typeof json !== "object") {
+        throw new Error("Hostinger devolvió un JSON inválido.");
       }
 
-      productCache = products;
-      saveProductsToStorage(products);
+      return json;
+    } catch (error) {
+      lastError = error;
 
-      return productCache;
+      if (attempt < MAX_ATTEMPTS) {
+        await wait(450 * attempt);
+      }
+    }
+  }
+
+  throw lastError || new Error("No se pudo cargar catalog.json.");
+}
+
+async function fetchTextWithRetry(url, headers = {}) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await fetchTextWithTimeout(url, headers);
     } catch (error) {
       lastError = error;
 
@@ -37,21 +133,10 @@ export async function loadProducts({ forceRefresh = false } = {}) {
     }
   }
 
-  const storedProducts = loadProductsFromStorage();
-
-  if (storedProducts.length) {
-    productCache = storedProducts;
-    console.warn(
-      "Google Sheets no respondió. Se utilizó la última copia guardada.",
-      lastError
-    );
-    return productCache;
-  }
-
-  throw lastError || new Error("No se pudo cargar el catálogo.");
+  throw lastError || new Error("No se pudo cargar la fuente remota.");
 }
 
-async function fetchCatalogWithTimeout(url) {
+async function fetchTextWithTimeout(url, headers = {}) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(
     () => controller.abort(),
@@ -64,33 +149,36 @@ async function fetchCatalogWithTimeout(url) {
 
     const response = await fetch(requestUrl, {
       method: "GET",
-      cache: "default",
+      cache: "no-store",
       signal: controller.signal,
-      headers: {
-        Accept: "text/csv,text/plain,*/*"
-      }
+      headers
     });
 
     if (!response.ok) {
-      throw new Error(`Google Sheets respondió ${response.status}.`);
+      throw new Error(
+        `La fuente ${url} respondió ${response.status}.`
+      );
     }
 
     const text = await response.text();
 
     if (!text.trim()) {
-      throw new Error("Google Sheets devolvió un catálogo vacío.");
+      throw new Error("La fuente devolvió una respuesta vacía.");
     }
 
-    if (/^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text)) {
+    if (
+      /^\s*<!doctype html/i.test(text) ||
+      /^\s*<html/i.test(text)
+    ) {
       throw new Error(
-        "Google Sheets devolvió una página HTML en lugar del CSV."
+        "La fuente devolvió HTML en lugar de datos de catálogo."
       );
     }
 
     return text;
   } catch (error) {
     if (error.name === "AbortError") {
-      throw new Error("Google Sheets tardó demasiado en responder.");
+      throw new Error("La fuente del catálogo tardó demasiado en responder.");
     }
 
     throw error;
@@ -99,12 +187,13 @@ async function fetchCatalogWithTimeout(url) {
   }
 }
 
-function saveProductsToStorage(products) {
+function saveProductsToStorage(products, source) {
   try {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
         savedAt: Date.now(),
+        source,
         products
       })
     );
@@ -143,13 +232,28 @@ export function csvToProducts(csvText) {
 
   const headers = rows[0].map(normalizeHeader);
 
-  return rows
+  const products = rows
     .slice(1)
     .map(values => {
       const product = {};
 
       headers.forEach((header, index) => {
         product[header] = cleanCell(values[index]);
+      });
+
+      return product;
+    });
+
+  return normalizeProducts(products);
+}
+
+function normalizeProducts(values) {
+  return values
+    .map(rawProduct => {
+      const product = {};
+
+      Object.entries(rawProduct || {}).forEach(([key, value]) => {
+        product[normalizeHeader(key)] = cleanCell(value);
       });
 
       product.images = [
@@ -163,7 +267,10 @@ export function csvToProducts(csvText) {
       return product;
     })
     .filter(product => isYes(product.activo))
-    .sort((a, b) => {
+    .sort(compareProducts);
+}
+
+function compareProducts(a, b) {
   const brandComparison = String(a.marca || "").localeCompare(
     String(b.marca || ""),
     "es",
@@ -192,7 +299,6 @@ export function csvToProducts(csvText) {
     "es",
     { sensitivity: "base" }
   );
-});
 }
 
 export function parseCSV(text) {
