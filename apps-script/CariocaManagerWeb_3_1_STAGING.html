@@ -1359,16 +1359,23 @@
       google.script.run
         .withSuccessHandler(result => {
           try {
+            const hostingerOk = result.hostinger && result.hostinger.ok === true;
+            const publishedCount = Number(result.published || 0);
+            const hostingerDetail = result.hostinger && (
+              result.hostinger.message ||
+              result.hostinger.error ||
+              result.hostinger.status
+            );
             showMessage(
               "publish-message",
-              `Publicación exitosa.\n` +
-              `Productos publicados: ${result.published}\n` +
-              `Omitidos: ${result.omitted}\n` +
-              `Tiempo de publicación: ${result.seconds} segundos.
-` +
-              `Hostinger: ${result.hostinger && result.hostinger.ok ? "OK" : "Pendiente"}\n` +
+              `${hostingerOk ? "Publicación completada." : "Atención: publicación parcial. Verificá Hostinger antes de continuar."}\\n` +
+              `Productos publicados en Web_CSV: ${publishedCount}\\n` +
+              `Omitidos: ${result.omitted}\\n` +
+              `Tiempo de publicación: ${result.seconds} segundos.\\n` +
+              `Hostinger: ${hostingerOk ? "OK" : "NO CONFIRMADO"}\\n` +
+              (hostingerDetail ? `Detalle: ${hostingerDetail}\\n` : "") +
               `Versión: ${result.version || "3.1.0-STAGING"}`,
-              "success"
+              hostingerOk ? "success" : "warning"
             );
 
             catalogValidated = false;
